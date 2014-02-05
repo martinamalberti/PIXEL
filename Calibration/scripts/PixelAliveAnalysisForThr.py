@@ -13,11 +13,9 @@ import itertools
 
 pixelAnalysisExe   = './bin/linux/x86_64_slc5/PixelAnalysis.exe'
 config             = 'configuration/PixelAliveAnalysis.xml'
-#rundir             = os.environ['POS_OUTPUT_DIRS']
-#dacdir             = os.environ['PIXELCONFIGURATIONBASE']+'/dac'
+rundir             = os.environ['POS_OUTPUT_DIRS']
+dacdir             = os.environ['PIXELCONFIGURATIONBASE']+'/dac'
 
-rundir             = './'
-dacdir             = '/Users/malberti/Work/CMS/PIXEL/Calibrations/PCDE_BmI/dac'
 
 
 def RunPixelAliveAnalysis(run):
@@ -26,7 +24,7 @@ def RunPixelAliveAnalysis(run):
     os.system(cmd) 
 
 
-def CheckEfficiency(run, outfilename):
+def CheckEfficiency(run, filename, iteration):
     
     maxeff = 100
     maxDeadPixels = 10
@@ -34,15 +32,17 @@ def CheckEfficiency(run, outfilename):
     numFailingRocs = 0
 
     # prepare output file where ROCs failing PixelAlive will be written
-    outfile = open(outfilename,'w')
+    outfile = open("%s_%d.txt"%(filename,iteration),'w')
 
     # open PixelAlive root file to be analyzed
-    #path = '%s/Run_%d/Run_%d/%s' % (rundir,runfolder(run),run)
-    #files = [ file for file in os.listdir('%d'%path) if 'PixelAlive_Fed_' in file]
-    #if len(files!=1):
-    #    sys.exit('PixelAlive root file NOT found !!!')
-    #file = TFile( '%s/Run_%d/Run_%d/%s' % (rundir,runfolder(run),run,files[0]) )
-    file = TFile('PixelAlive_Fed_37-38_Run_1171.root')
+    path = '%s/Run_%d/Run_%d/' % (rundir,runfolder(run),run)
+    files = [ file for file in os.listdir('%s'%path) if 'PixelAlive_Fed_' in file]
+    print 'Found files: ', files
+    if len(files)!=1:
+        sys.exit('PixelAlive root file NOT found !!!')
+    file = TFile( '%s/Run_%d/Run_%d/%s' % (rundir,runfolder(run),run,files[0]) )
+
+    #file = TFile('PixelAlive_Fed_37-38_Run_1171.root') # for test
     
     FPix.cd()
    
@@ -74,13 +74,13 @@ def CheckEfficiency(run, outfilename):
  
                                                 # count dead pixels in each roc
                                                 numDeadPixels=0
-                                                for x in range(1,xBins):
-                                                    for y in range(1,yBins):
+                                                for x in range(1,xBins+1):
+                                                    for y in range(1,yBins+1):
                                                         if histo.GetBinContent(x,y) < maxeff:
                                                             numDeadPixels=numDeadPixels+1;
                                                 if (numDeadPixels > maxDeadPixels):
                                                     numFailingRocs=numFailingRocs+1
-                                                    rocname = hname.replace('(inv)','')
+                                                    rocname = hname.replace(' (inv)','')
                                                     print '%s - Number of dead pixels = %d' %(rocname,numDeadPixels)
                                                     outfile.write('%s\n'%rocname)
 
@@ -88,26 +88,49 @@ def CheckEfficiency(run, outfilename):
     outfile.close()
     
 
+def runfolder(run):
+    f = int(run/1000)*1000
+    return f 
 
-def ChangeVcThr(run,dac,failed):
+
+def ChangeVcThr(run,dac,filename,iteration,excluded):
 
     currentdir = os.getcwd()
 
-    #read file containing the list of rocs that failed the PixelAlive
-    ffailed = open(failed,'r')
-    failedrocs = [line.replace('\n','') for line in ffailed]
-    print failedrocs
+    #read file containing the list of rocs that failed the PixelAlive at this iteration
+    failedfile = open("%s_%d.txt"%(filename,iteration),'r')
+    failedrocs = [line.replace('\n','') for line in failedfile]
+    #print 'ROCs failing at this iteration: ', failedrocs
+
+    #read file containing the list of rocs that failed the PixelAlive at the prevoius iterations
+    previousfailedrocs=[]
+    for iter in range(0,iteration):
+        if os.path.isfile("%s_%d.txt"%(filename,iter)):
+            previousfailedfile = open("%s_%d.txt"%(filename,iter),'r')
+            for line in previousfailedfile:
+                previousfailedrocs.append(line.replace('\n',''))
+    #print 'ROCs failing in the previous iterations: ', previousfailedrocs
+    print len(previousfailedrocs)
+
+    #read file containing the list of rocs that you want to exclude from the procedure (for example: known problematic ROCs that fail PixelAlive no mattter how high the threshold is)
+    excludedfile = open(excluded,'r')
+    excludedrocs = [line.replace('\n','') for line in excludedfile]
+    #print 'ROCs to be excluded at this iteration: ', excludedrocs
+
     
     #prepare dir for new dac settings
     tmpdir = 'new'
     cmd = 'mkdir %s'%tmpdir
     os.system(cmd)
     
-    #take dac settings used for the previous PixelAlive run
+    #take dac settings used for the PixelAlive run
     cmd = 'cp  %s/%s/*.dat ./'%(dacdir,dac)
     os.system(cmd)
 
-    #change VcThr: if ROC passed PixelAlive then VcThr+2, if failed VcThr-4
+    #change VcThr:
+    # - if the ROC fails PixelAlive at this iteration, then VcThr-4, 
+    # - if the ROC passes PixelAlive at this iteration and failed at any previous one, then VcThr+0, 
+    # - if the ROC passes PixelAlive at this iteration and has never failed before, then VcThr+2, 
     files = [file for file in os.listdir('./') if 'ROC_DAC_module' in file]
     for f in files:
         fileold = open(f)
@@ -121,9 +144,17 @@ def ChangeVcThr(run,dac,failed):
                 elif 'VcThr' in item:
                     vcthr,value = item.split()
                     if name in failedrocs:
-                        newvalue = int(value)-4 
-                    else: 
+                        if name in excludedrocs:
+                            newvalue = int(value)
+                        else:    
+                            newvalue = int(value)-4 
+                        #print name, value, newvalue
+                    elif name in previousfailedrocs:
+                        newvalue = int(value)
+                        #print name, value, newvalue
+                    else:
                         newvalue = int(value)+2
+                        #print name, value, newvalue
                     filenew.write('VcThr:         %d\n'%newvalue)
                 else:
                     filenew.write(item)
@@ -159,7 +190,7 @@ def MakeNewDacSettings():
         
     cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
     print cmd
-#    os.system(cmd)
+    os.system(cmd)
 
 
 
@@ -167,21 +198,26 @@ def MakeNewDacSettings():
 from optparse import OptionParser
 parser = OptionParser()
 parser.add_option("-r","--run",dest="run",type="int",help="Run number")
-parser.add_option("-d","--dac",dest="dac",type="string",help="dac")
-parser.add_option("-o","--output",dest="output",type="string",help="Name of the output file")
+parser.add_option("-d","--dac",dest="dac",type="string",help="Number identifying the dac directory with the dac settings used for the current run.")
+parser.add_option("-i","--iteration",dest="iteration",type="int",default=-1,help="Iteration")
+parser.add_option("-o","--output",dest="output",type="string",default="failed",help="Name of the output file containing the list of failing rocs. Default is failed.txt")
+parser.add_option("-e","--exclude",dest="exclude",type="string",default="failed_0.txt",help="List of the ROCs you want to exclude from the iterative procedure")
 (options,args)=parser.parse_args()
 
-if not options.run or not options.dac or not options.output:
-    sys.exit('Usage: PixelAliveAnalysisForThr -r <run> -d <dac> -o <outfile> \n Exiting.')
+if not options.run or  not options.dac  or options.iteration < 0:
+    sys.exit('Usage: PixelAliveAnalysisForThr.py -r <run> -d <dac> -i <iteration> \n Exiting.')
+
+print dacdir
+print rundir
 
 # --- analyze PixelAlive run
 RunPixelAliveAnalysis(options.run)
 
-# --- check the efficiecny of all ROCS and make a list of failed rocs (i.e. rocs with more than 10 dead pixels)
-CheckEfficiency(options.run,options.output)
+# --- check the efficiency of all ROCS and make a list of failed rocs (i.e. rocs with more than 10 dead pixels)
+CheckEfficiency(options.run,options.output,options.iteration)
 
 # --- prepare new dac settings by changing VcThr
-ChangeVcThr(options.run,options.dac,options.output)
+ChangeVcThr(options.run,options.dac,options.output,options.iteration,options.exclude)
 MakeNewDacSettings()
 
 
