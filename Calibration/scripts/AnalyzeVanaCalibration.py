@@ -108,6 +108,7 @@ for iter in range(miniter,maxiter+1):
         hvanacorr[iter-miniter].Fill(vanacorr[roc][iter-miniter])
         hdt[iter-miniter].Fill(inthr[roc][iter-miniter]-absthr[roc][iter-miniter])
         habs[iter-miniter].Fill(absthr[roc][iter-miniter])
+        #habs[iter-miniter].Fill(inthr[roc][iter-miniter])
 
 # fill deltaVana vs number of iteration
 col=1
@@ -128,7 +129,7 @@ for roc in vanacorr:
 
     hvanacorr_vs_iter[roc].SetLineColor(col)
 #    if (vanacorr[roc][1] > 5):
-#if ('D1_BLD6' in roc ):
+#    if ('D1_BLD6' in roc ):
 #    if ('D1_BLD11' in roc):
     for iter in range(miniter,maxiter+1):
         hvanacorr_vs_iter[roc].Fill(iter, vanacorr[roc][iter-miniter])

@@ -36,11 +36,13 @@ def isa_group_separator(line):
 
 
 def MakeScatterPlot(d1,d2,par,min,max):
-    nbins = int(max - min)/2
+    nbins = int(max - min)/5
     h = TH2F("h","h",nbins,min,max,nbins,min,max)
-    title = '%s (T = 0#circC)'%par
+    #title = '%s (T_{DISKS} = -8#circC)'%par
+    title = '%s (standard)'%par
     h.SetXTitle(title)
-    title = '%s (T = -20#circC)'%par
+    #title = '%s (T_{DISKS} = -4#circC)'%par
+    title = '%s (new)'%par
     h.SetYTitle(title)
     h.SetMarkerColor(kBlack)
     h.SetLineColor(kBlack)
@@ -50,19 +52,22 @@ def MakeScatterPlot(d1,d2,par,min,max):
     for roc in d1:
         v1 = float(d1[roc])
         v2 = float(d2[roc])
-        #if ('PLQ2' in roc):
+        #if 'PLQ' in roc:
+        #if 'D1_BLD6_PNL1' not in roc and 'D1_BLD11_PNL2' not in roc:
+        #if 'D1_BLD6_PNL1' in roc or 'D1_BLD11_PNL2' in roc:
         h.Fill(v1,v2)
-        
-    tp,fun = MakeFit(h)    
+
+    tp = h.ProfileX()
+    tp.SetLineColor(kRed)
+    tp.SetMarkerColor(kRed)
+    tp.SetMarkerSize(0.8)
+     
+    fun = MakeFit(tp)    
     return h,tp,fun
 
 
 def MakeFit(h):
-    tp = h.ProfileX()
-    tp.SetLineColor(kRed)
-    tp.SetMarkerColor(kRed)
-    tp.SetMarkerSize(0.5)
-    
+       
     average = int(h.GetMean())
     print 'Average %s = %d'%(options.parameter,average)
     formula = "%d+[0]+[1]*(x-%d)"%(average,average)
@@ -70,12 +75,34 @@ def MakeFit(h):
     f1.SetLineStyle(2)
     f1.SetLineWidth(1)
     f1.SetLineColor(kRed)
-    tp.Fit("f1","S")
+    h.Fit("f1","S")
     print '%s = %d at %s = %d'%(options.parameter,f1.Eval(average-2*h.GetRMS()), options.parameter,average-2*h.GetRMS())
     print '%s = %d at %s = %d'%(options.parameter,f1.Eval(average), options.parameter,average)
     print '%s = %d at %s = %d'%(options.parameter,f1.Eval(average+2*h.GetRMS()), options.parameter,average+2*h.GetRMS())
     
-    return tp, f1
+    return f1
+
+
+def MakeGraphs(d1,d2):
+    g1=TGraph()
+    g1.SetMarkerColor(kBlue)
+    g1.SetMarkerStyle(20)
+    g1.SetMarkerSize(0.5)
+    g2=TGraph()
+    g2.SetMarkerColor(kCyan)
+    g2.SetMarkerStyle(20)
+    g2.SetMarkerSize(0.5)
+
+    for r,roc in enumerate(d1):
+        v1 = float(d1[roc])
+        v2 = float(d2[roc])
+        if 'D1_BLD6_PNL1' not in roc and 'D1_BLD11_PNL2' not in roc:
+            g1.SetPoint(r,v1,v2)
+        else:
+            g2.SetPoint(r,v1,v2)
+    
+    return g1,g2        
+
 
 from optparse import OptionParser
 parser = OptionParser()
@@ -103,11 +130,12 @@ vana2 = ReadDacSettings(options.dac2,options.parameter)
 
 
 h,tp,f1 = MakeScatterPlot(vana1,vana2,options.parameter,options.min,options.max)
+g1,g2 = MakeGraphs(vana1,vana2)
 
 c=TCanvas("c","c",500,500)
 c.SetGridy()
 c.SetGridx()
-h.Draw("box")
+h.Draw("")
 tp.Draw("same")
 f1.Draw("same")
     
@@ -115,10 +143,43 @@ f2 = TF1("f2","x",0,options.max)
 f2.SetLineStyle(3)
 f2.SetLineWidth(1)
 f2.SetLineColor(kBlack)
-f2.Draw("same")
+#f2.Draw("same")
+
+
+
+hh = TH1F("hh","hh",30,-30.5,30.5)
+xaxis = '#Delta %s'%options.parameter
+hh.GetXaxis().SetTitle(xaxis)
+for roc in vana1:
+    v1 = float(vana1[roc])
+    v2 = float(vana2[roc])
+    if abs(v1-v2)>10:
+        print roc
+    #if 'D1_BLD6_PNL1' not in roc and 'D1_BLD11_PNL2' not in roc:
+    #if 'D1_BLD6_PNL1' in roc or 'D1_BLD11_PNL2' in roc:
+    hh.Fill(v2-v1)
+
+cc = TCanvas("cc","cc",500,500)
+hh.Draw()
+
+
+
+ccc=TCanvas("ccc","ccc",500,500)
+ccc.SetGridy()
+ccc.SetGridx()
+g1.GetXaxis().SetRangeUser(options.min,options.max)
+g1.Draw("ap")
+g2.Draw("psame")
+
 
 raw_input('ok?')
 
 cname = '%sComparison'%options.parameter
 c.SaveAs(cname+'.png')    
 c.SaveAs(cname+'.pdf')    
+
+cname = '%sDifference'%options.parameter
+cc.SaveAs(cname+'.png')    
+cc.SaveAs(cname+'.pdf')    
+
+
