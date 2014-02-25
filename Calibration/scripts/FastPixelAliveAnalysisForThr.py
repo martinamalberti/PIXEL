@@ -267,7 +267,7 @@ def MakeNewDacSettings():
     os.chdir('%s'%currentdir)
 
     # --- Copy .dat files in the new/ directory to the dac directory
-    cmd = 'cp new/ROC_DAC_module_FPix*dat %s/%d'%(dacdir,newsettings)    
+    cmd = 'cp new/ROC_DAC_module_*.dat %s/%d'%(dacdir,newsettings)    
     os.system(cmd)
         
     # --- Make the new dac the default
