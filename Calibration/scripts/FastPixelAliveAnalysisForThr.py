@@ -155,8 +155,6 @@ def ChangeVcThr(run,key,filename,iteration,excluded,deltafilename,singleStep,lar
                     filenew.write(item)
                 elif 'VcThr' in item:
                     vcthr,value = item.split()
-                    #newvalue = int(value)
-                    #delta = 0
                     if name in excludedrocs:
                         newvalue = int(value)
                         delta = 0
@@ -168,8 +166,12 @@ def ChangeVcThr(run,key,filename,iteration,excluded,deltafilename,singleStep,lar
                                 delta    = largeStep
                             else:                                     
                                 if rocsdelta[name] == largeStep:
-                                    newvalue = int(value) + largeStep
-                                    delta    = largeStep
+                                    if (iteration * largeStep >= 24): # don't go to low with thresholds...
+                                        newvalue = int(value)
+                                        delta = 0
+                                    else:
+                                        newvalue = int(value) + largeStep
+                                        delta    = largeStep
                                 elif rocsdelta[name] == 0:
                                     newvalue = int(value)
                                     delta    = 0
@@ -248,7 +250,7 @@ parser.add_option("-d","--deltaFile",dest="delta",type="string",default="delta",
 parser.add_option("-e","--exclude",dest="exclude",type="string",default="failed_0.txt",help="List of the ROCs you want to exclude from the iterative procedure")
 parser.add_option("","--singleStep",dest="singleStep",type="int",default=2,help="Step width. Default is 2")
 parser.add_option("","--largeStep",dest="largeStep",type="int",default=8,help="Large step width. Default is 8")
-parser.add_option("","--safetyMargin",dest="safetyMargin",type="int",default=4,help="Safety margin. Default is 4")
+parser.add_option("","--safetyMargin",dest="safetyMargin",type="int",default=6,help="Safety margin. Default is 6")
 parser.add_option("","--maxDeadPixels",dest="maxDeadPixels",type="int",default=10,help="Maximum number of dead pixels per ROC. Default is 10.")
 
 (options,args)=parser.parse_args()
