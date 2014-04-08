@@ -22,11 +22,29 @@ def RunPixelAliveAnalysis(run):
     os.system(cmd) 
 
 
-def CheckEfficiency(run, filename, iteration, maxDeadPixels, skipFPix, skipBPix):
-    
+def CountDeadPixels (maxDeadPixels, outfile):
     maxeff = 100
-    numPixels = 4160
-    numFailingRocs = 0
+
+    for roc in gDirectory.GetListOfKeys(): ## ROC folder: find one TH2F for each ROC                                                                                                                    
+        histo = roc.ReadObj()
+        hname   = histo.GetName()
+        xBins   = histo.GetNbinsX()
+        yBins   = histo.GetNbinsY()
+
+        # count dead pixels in each roc                                                                                                                                                                 
+        numDeadPixels = 0
+        for x in range(1,xBins+1):
+            for y in range(1,yBins+1):
+                if histo.GetBinContent(x,y) < maxeff:
+                    numDeadPixels=numDeadPixels+1;
+        if (numDeadPixels > maxDeadPixels):
+            rocname = hname.replace(' (inv)','')
+            print '%s - Number of dead pixels = %d' %(rocname,numDeadPixels)
+            outfile.write('%s\n'%rocname)
+
+
+
+def CheckEfficiency(run, filename, iteration, maxDeadPixels, skipFPix, skipBPix):
 
     # prepare output file where ROCs failing PixelAlive will be written
     outfile = open("%s_%d.txt"%(filename,iteration),'w')
@@ -39,7 +57,6 @@ def CheckEfficiency(run, filename, iteration, maxDeadPixels, skipFPix, skipBPix)
         sys.exit('PixelAlive root file NOT found !!!')
     file = TFile( '%s/Run_%d/Run_%d/%s' % (rundir,runfolder(run),run,files[0]) )
 
-
     # navigate in the root file directories to get efficiency histograms for each ROC    
     dirs = []
     if not skipFPix and not skipBPix:
@@ -49,56 +66,19 @@ def CheckEfficiency(run, filename, iteration, maxDeadPixels, skipFPix, skipBPix)
     elif skipFPix and not skipBPix:
         dirs = ["BPix"]
           
-    for dir in dirs:
-        
+    for dir in dirs:        
         file.cd(dir)
-   
-        for obj0 in gDirectory.GetListOfKeys(): ## BmI,BmO,BpI,BpO
-            if obj0.IsFolder():
-                obj0.ReadObj().cd()
-                
-                for obj1 in gDirectory.GetListOfKeys(): # FPIX:DISKS / BPIX:SECTORS  
-                    if obj1.IsFolder():
-                        obj1.ReadObj().cd()
+        browseROCChain(['%s/Run_%d/Run_%d/%s' % (rundir,runfolder(run),run,files[0])], CountDeadPixels, maxDeadPixels, outfile)
+
                         
-                        for obj2 in gDirectory.GetListOfKeys(): # FPIX:BLD / BPIX:LAYERS
-                            if  obj2.IsFolder():
-                                obj2.ReadObj().cd()
-                                
-                                for obj3 in gDirectory.GetListOfKeys(): #  PIX:PNL / BPIX:LDR
-                                    if  obj3.IsFolder():
-                                        obj3.ReadObj().cd()
-                                            
-                                        for obj4 in gDirectory.GetListOfKeys(): # FPIX:PLQ / BPIX:MOD 
-                                            if  obj4.IsFolder():
-                                                obj4.ReadObj().cd()
-
-                                                for obj5 in gDirectory.GetListOfKeys(): ## ROC folder: find one TH2F for each ROC
-                                                    histo = obj5.ReadObj()
-                                                    hname   = histo.GetName()
-                                                    xBins   = histo.GetNbinsX()
-                                                    yBins   = histo.GetNbinsY()
- 
-                                                    # count dead pixels in each roc
-                                                    numDeadPixels=0
-                                                    for x in range(1,xBins+1):
-                                                        for y in range(1,yBins+1):
-                                                            if histo.GetBinContent(x,y) < maxeff:
-                                                                numDeadPixels=numDeadPixels+1;
-                                                    if (numDeadPixels > maxDeadPixels):
-                                                        numFailingRocs=numFailingRocs+1
-                                                        rocname = hname.replace(' (inv)','')
-                                                        print '%s - Number of dead pixels = %d' %(rocname,numDeadPixels)
-                                                        outfile.write('%s\n'%rocname)
-
-    print 'Number of failing ROCs = %d'% numFailingRocs
+    outfile = open("%s_%d.txt"%(filename,iteration),'r')
+    print 'Number of failing ROCs = %d'% len(outfile.readlines())
     outfile.close()
 
 
 def runfolder(run):
     f = int(run/1000)*1000
     return f 
-
 
 
 def findDacFromKey(key):
