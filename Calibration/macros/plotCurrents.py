@@ -15,7 +15,6 @@ ROOT.gStyle.SetOptTitle(0)
 if os.path.exists(sys.argv[1]):
     file = open(sys.argv[1])
     currents = [line.replace('Iteration ','').replace(':','').replace('\n','').split(' ') for line in file if 'Iteration' in line]
-    # print currents
 else:
     sys.exit("File %s doesn't exist"%sys.argv[1])
 
@@ -44,7 +43,7 @@ for rog in range(1,9):
 c = TCanvas("c","c")
 hcurrent[0].SetLineColor(kRed)
 hcurrent[max-1].SetLineColor(kBlue)
-hcurrent[max-1].GetXaxis().SetTitle("current/ROG (A)")
+hcurrent[max-1].GetXaxis().SetTitle("<current>/ROC (mA)")
 hcurrent[max-1].Draw()
 hcurrent[0].Draw("sames")
  
@@ -53,7 +52,7 @@ cc.SetGridy()
 hdummy =  TH2F("hdummy","", 21,-0.5,20.5,120,2./nr,5./nr)
 hdummy.GetXaxis().SetRangeUser(1,max)
 hdummy.SetXTitle("iteration")
-hdummy.SetYTitle("current/ROC(A)")
+hdummy.SetYTitle("<current>/ROC(mA)")
 hdummy.Draw()
 for rog in range(1,9):
     h2[rog-1].Draw("lsame") 
