@@ -18,7 +18,7 @@ def fillDict(filename):
     file = open(filename)
     vanalist=[line.replace('\n','').split('deltaVana_corr= ') for line in file if 'Vana_corr' in line]
     vanadict= {el[0]:[float(el[1])] for el in vanalist } # for Python2.7
-    #vanadict=dict( (el[0],[float(el[1])]) for el in vanalist )
+    #vanadict=dict( (el[0],[float(el[1])]) for el in vanalist )# for Python2.4
     file.seek(0)
     inthrlist=[line.replace('\n','').replace('(ben) ROC: ','').split(' avgThr: ') for line in file if 'avgThr:' in line]
     inthrdict= {el[0]:[float(el[1])] for el in inthrlist } # for Python2.7
@@ -27,12 +27,6 @@ def fillDict(filename):
     absthrlist=[line.replace('\n','').replace('(ben) ROC: ','').split(' avgThr_abs: ') for line in file if 'avgThr_abs:' in line] 
     absthrdict= {el[0]:[float(el[1])] for el in absthrlist }
     #absthrdict= dict( (el[0],[float(el[1])]) for el in absthrlist ) # for Python2.4
-    #print vanadict
-    #print inthrdict
-    #print absthrdict
-    #print 'vana corr ', vanalist
-    #print 'in time thr  ', inthrlist
-    #print 'abs thr ' , absthrlist
     return vanadict, inthrdict, absthrdict
 
 def PlotHistogram(canvas, histogram, index1, index2, xtitle, legend):
@@ -72,7 +66,6 @@ parser.add_option("-M","--maxIteration",dest="maxIteration",type="int",default=1
 
 ROOT.gStyle.SetOptStat(1110)
 ROOT.gStyle.SetOptTitle(0)
-
 
 miniter=int(options.minIteration)
 maxiter=int(options.maxIteration) 
