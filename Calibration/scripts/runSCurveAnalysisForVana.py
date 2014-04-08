@@ -145,7 +145,7 @@ def MakeNewDacSettings():
         print cmd
     os.chdir('%s'%currentdir)
 
-    cmd = 'cp ROC_DAC_module_FPix*dat %s/%d'%(dacdir,newsettings)    
+    cmd = 'cp ROC_DAC_module_*dat %s/%d'%(dacdir,newsettings)    
     if (verbose):
         print cmd
     os.system(cmd)
