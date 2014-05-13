@@ -267,17 +267,15 @@ parser.add_option("-o","--outputFile",dest="output",type="string",default="faile
 parser.add_option("-d","--deltaFile",dest="delta",type="string",default="delta",help="Name of the output file containing the deltaVcThr. Default is delta.txt")
 parser.add_option("-e","--exclude",dest="exclude",type="string",default="failed_0.txt",help="List of the ROCs you want to exclude from the iterative procedure")
 parser.add_option("","--singleStep",dest="singleStep",type="int",default=2,help="Step width. Default is 2")
-parser.add_option("","--largeStep",dest="largeStep",type="int",default=8,help="Large step width. Default is 8")
+parser.add_option("","--largeStep",dest="largeStep",type="int",default=6,help="Large step width. Default is 6")
 parser.add_option("","--safetyMargin",dest="safetyMargin",type="int",default=6,help="Safety margin. Default is 6")
 parser.add_option("","--maxDeadPixels",dest="maxDeadPixels",type="int",default=10,help="Maximum number of dead pixels per ROC. Default is 10.")
 
 parser.add_option("","--skipFPix",dest="skipFPix",default=False,action="store_true",help="Skip FPix")
 parser.add_option("","--skipBPix",dest="skipBPix",default=False,action="store_true",help="Skip BPix")
+parser.add_option("","--makeNewDac",dest="makeNewDac",type="int",default=1,help="If 1, new dac is created")
 
 (options,args)=parser.parse_args()
-
-print options.skipFPix
-print options.skipBPix
 
 
 # --- Do some sanity checks before starting...
@@ -317,8 +315,9 @@ RunPixelAliveAnalysis(options.run)
 CheckEfficiency(options.run,options.output,options.iteration,options.maxDeadPixels,options.skipFPix, options.skipBPix)
 
 # --- Prepare new dac settings (change VcThr)
-ChangeVcThr(options.run,options.key,options.output,options.iteration,options.exclude,options.delta,options.singleStep,options.largeStep, options.safetyMargin, options.skipFPix, options.skipBPix)
-MakeNewDacSettings()
+if (options.makeNewDac==1):
+    ChangeVcThr(options.run,options.key,options.output,options.iteration,options.exclude,options.delta,options.singleStep,options.largeStep, options.safetyMargin, options.skipFPix, options.skipBPix)
+    MakeNewDacSettings()
 
 
 
