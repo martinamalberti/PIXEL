@@ -9,7 +9,7 @@ import sys
 from ROOT import *
 import itertools
 from itertools import islice
-
+import browseCalibFiles
 
 pixelAnalysisExe   = './bin/linux/x86_64_slc5/PixelAnalysis.exe'
 config             = 'configuration/PixelAliveAnalysis.xml'
@@ -22,7 +22,7 @@ def RunPixelAliveAnalysis(run):
     os.system(cmd) 
 
 
-def CountDeadPixels (maxDeadPixels, outfile):
+def CountDeadPixels (maxDeadPixels, outfile, excluded):
     maxeff = 100
 
     for roc in gDirectory.GetListOfKeys(): ## ROC folder: find one TH2F for each ROC                                                                                                                    
@@ -40,11 +40,12 @@ def CountDeadPixels (maxDeadPixels, outfile):
         if (numDeadPixels > maxDeadPixels):
             rocname = hname.replace(' (inv)','')
             print '%s - Number of dead pixels = %d' %(rocname,numDeadPixels)
-            outfile.write('%s\n'%rocname)
+            if (roc not in open(excluded).read()):
+                outfile.write('%s\n'%rocname)
 
 
 
-def CheckEfficiency(run, filename, iteration, maxDeadPixels, skipFPix, skipBPix):
+def CheckEfficiency(run, filename, iteration, maxDeadPixels, skipFPix, skipBPix, excluded):
 
     # prepare output file where ROCs failing PixelAlive will be written
     outfile = open("%s_%d.txt"%(filename,iteration),'w')
@@ -68,7 +69,7 @@ def CheckEfficiency(run, filename, iteration, maxDeadPixels, skipFPix, skipBPix)
           
     for dir in dirs:        
         file.cd(dir)
-        browseROCChain(['%s/Run_%d/Run_%d/%s' % (rundir,runfolder(run),run,files[0])], CountDeadPixels, maxDeadPixels, outfile)
+        browseCalibFiles.browseROCChain(['%s/Run_%d/Run_%d/%s' % (rundir,runfolder(run),run,files[0])], CountDeadPixels, maxDeadPixels, outfile, excluded)
 
                         
     outfile = open("%s_%d.txt"%(filename,iteration),'r')
@@ -312,7 +313,7 @@ if (options.largeStep%options.singleStep != 0) :
 RunPixelAliveAnalysis(options.run)
 
 # --- Check the efficiency of all ROCS and make a list of failed rocs (i.e. rocs with more than maxDeadPixels pixels)
-CheckEfficiency(options.run,options.output,options.iteration,options.maxDeadPixels,options.skipFPix, options.skipBPix)
+CheckEfficiency(options.run,options.output,options.iteration,options.maxDeadPixels,options.skipFPix, options.skipBPix, options.exclude)
 
 # --- Prepare new dac settings (change VcThr)
 if (options.makeNewDac==1):
