@@ -40,7 +40,7 @@ def CountDeadPixels (maxDeadPixels, outfile, excluded):
         if (numDeadPixels > maxDeadPixels):
             rocname = hname.replace(' (inv)','')
             print '%s - Number of dead pixels = %d' %(rocname,numDeadPixels)
-            if (roc not in open(excluded).read()):
+            if (rocname not in open(excluded).read()):
                 outfile.write('%s\n'%rocname)
 
 
