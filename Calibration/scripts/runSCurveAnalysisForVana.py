@@ -34,7 +34,9 @@ def RunSCurveAnalysisInTime(run):
     cmd = '%s %s %d'%(pixelAnalysisExe, SCurveInTimeConfig, run)
     if (verbose):
         print cmd
-    os.system(cmd) 
+    writer =open("scurveInTime.log", 'w')
+    process = subprocess.call(cmd, shell = True, stdout=writer)
+    #    os.system(cmd) 
 
     # --- copy TrimOutputFile to TrimDefault.dat
     dir = '%s/Run_%d/Run_%d'%(rundir,runfolder(run),run)
@@ -62,7 +64,9 @@ def RunSCurveAnalysisAbsolute(run):
     cmd = '%s %s %d'%(pixelAnalysisExe, SCurveAbsConfig, run)
     if (verbose):
         print cmd
-    os.system(cmd)
+    writer =open("scurveAbs.log", 'w')
+    process = subprocess.call(cmd, shell = True, stdout=writer)
+    #os.system(cmd)
 
     # --- copy TrimOutputFile to TrimDefault.dat
     dir = '%s/Run_%d/Run_%d'%(rundir, runfolder(run), run)
