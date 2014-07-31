@@ -7,6 +7,8 @@
 import os
 import sys
 from ROOT import *
+import shutil
+import glob
 import itertools
 from itertools import islice
 import browseCalibFiles
@@ -22,7 +24,7 @@ def RunPixelAliveAnalysis(run):
     os.system(cmd) 
 
 
-def CountDeadPixels (maxDeadPixels, outfile, excluded):
+def CountDeadPixels (maxDeadPixels, outfile, excludedrocs):
     maxeff = 100
 
     for roc in gDirectory.GetListOfKeys(): ## ROC folder: find one TH2F for each ROC                                                                                                                    
@@ -40,12 +42,19 @@ def CountDeadPixels (maxDeadPixels, outfile, excluded):
         if (numDeadPixels > maxDeadPixels):
             rocname = hname.replace(' (inv)','')
             print '%s - Number of dead pixels = %d' %(rocname,numDeadPixels)
-            if (rocname not in open(excluded).read()):
+            if (rocname not in excludedrocs):
                 outfile.write('%s\n'%rocname)
 
 
 
 def CheckEfficiency(run, filename, iteration, maxDeadPixels, skipFPix, skipBPix, excluded):
+    
+    # excluded rocs
+    excludedrocs = []
+    if (excluded != '' and  os.path.isfile(excluded)):
+        excludedfile = open(excluded,'r')
+        if (excludedfile):
+            excludedrocs = [line.replace('\n','') for line in excludedfile]
 
     # prepare output file where ROCs failing PixelAlive will be written
     outfile = open("%s_%d.txt"%(filename,iteration),'w')
@@ -69,7 +78,7 @@ def CheckEfficiency(run, filename, iteration, maxDeadPixels, skipFPix, skipBPix,
           
     for dir in dirs:        
         file.cd(dir)
-        browseCalibFiles.browseROCChain(['%s/Run_%d/Run_%d/%s' % (rundir,runfolder(run),run,files[0])], CountDeadPixels, maxDeadPixels, outfile, excluded)
+        browseCalibFiles.browseROCChain(['%s/Run_%d/Run_%d/%s' % (rundir,runfolder(run),run,files[0])], CountDeadPixels, maxDeadPixels, outfile, excludedrocs)
 
                         
     outfile = open("%s_%d.txt"%(filename,iteration),'r')
@@ -83,16 +92,6 @@ def runfolder(run):
 
 
 def findDacFromKey(key):
-    #find dac settings corresponding to the key used for this run
-
-    #aliases = open(os.environ['PIXELCONFIGURATIONBASE']+'aliases.txt','r')
-    #a = [item for item in aliases if item.startswith('PixelAlive     %s'%key)]
-    #if len(a)<1:
-    #    sys.exit('ERROR: incorrect key! Please check ')
-    #else:
-    #    aliases.seek(0)
-    #    dac = [item.split()[1] for item in aliases if item.startswith('dac') ]
-
     dac = []
     with open(os.environ['PIXELCONFIGURATIONBASE']+'configurations.txt','r') as f:
         chunks = f.read().split('\n\n')
@@ -106,19 +105,48 @@ def findDacFromKey(key):
     return dac[0]
 
 
+def findDetConfigFromKey(key):
+    detconfig = []
+    with open(os.environ['PIXELCONFIGURATIONBASE']+'configurations.txt','r') as f:
+        chunks = f.read().split('\n\n')
+    for c in chunks:
+        config = c.split('\n')
+        if 'key %s'%key in config:
+            detconfig = [item.split()[1] for item in config if item.startswith('detconfig')]
+    if len(detconfig)<1:
+        sys.exit("Error: detconfig not found")
+    print "Used key %s with detconfig %s"%(key,detconfig[0])
+    return detconfig[0]
+
+
+def findRocsInDetConfig(key):    
+    detconfig = findDetConfigFromKey(key)
+    detconfigName = os.environ['PIXELCONFIGURATIONBASE']+'/detconfig/'+detconfig+'/detectconfig.dat'
+    f = open(detconfigName)
+    # return only active rocs
+    rocs = [line.replace('\n','').replace(' ','') for line in f if ('noAnalogSignal' not in line and 'noInit' not in line)]
+    return rocs
+
 
 def ChangeVcThr(run,key,filename,iteration,excluded,deltafilename,singleStep,largeStep,safetyMargin,skipFPix,skipBPix):
     
+    # -- Make the list of ROCs active used in the detconfig
+    rocsInDetConfig = findRocsInDetConfig(key)
+    #print rocsInDetConfig
+
     # --- Read file containing the list of rocs that you want to exclude from the procedure              ---
     # --- (for example: known problematic ROCs that fail PixelAlive no matter how high the threshold is) ---
-    excludedfile = open(excluded,'r')
-    excludedrocs = [line.replace('\n','') for line in excludedfile]
+    excludedrocs = []
+    if (excluded != '' and  os.path.isfile(excluded)):
+        excludedfile = open(excluded,'r')
+        if (excludedfile):
+            excludedrocs = [line.replace('\n','') for line in excludedfile]
     #print 'ROCs to be excluded at this iteration: ', excludedrocs
     
     # --- Read file containing the list of rocs that failed the PixelAlive at this iteration ---------------
     failedfile = open("%s_%d.txt"%(filename,iteration),'r')
     failedrocs = [line.replace('\n','') for line in failedfile]
-    # print 'ROCs failing at this iteration: ', failedrocs                   
+    #print 'ROCs failing at this iteration: ', failedrocs                   
    
     # --- Read file containing the list of deltas from the previous iteration ------------------------------
     # --- build a dictionary with key = roc, value = delta
@@ -131,9 +159,11 @@ def ChangeVcThr(run,key,filename,iteration,excluded,deltafilename,singleStep,lar
 
     # --- Copy dac settings used for the PixelAlive run locally ---------------------------------------------
     dac = findDacFromKey(key)    
-    cmd = 'cp  %s/%s/*.dat ./'%(dacdir,dac)
-    os.system(cmd)
-                
+    for f in glob.glob( dacdir+'/'+dac+'/*.dat'):
+        #print f
+        shutil.copy(f, './')
+
+           
     # --- Prepare dir for new dac settings ------------------------------------------------------------------
     tmpdir = 'new'
     cmd = 'mkdir %s'%tmpdir
@@ -142,22 +172,20 @@ def ChangeVcThr(run,key,filename,iteration,excluded,deltafilename,singleStep,lar
     # --- Make the list of .dat files where VcThr must be changed --------------------------------------------------
     # --- if BPix or FPix are not being analyzed, skip them    
     files = []
-    
+
     if not skipBPix and not skipFPix:
         files = [file for file in os.listdir('./') if 'ROC_DAC_module_FPix' in file]
     elif skipBPix and not skipFPix:
         files  = [file for file in os.listdir('./') if 'ROC_DAC_module_FPix' in file]
         bfiles = [file for file in os.listdir('./') if 'ROC_DAC_module_BPix' in file]
         for f in bfiles:
-            cmd = 'cp %s %s'%(f,tmpdir)
-            os.system(cmd)
+            shutil.copy(f,tmpdir)
     elif skipFPix and not skipBPix:
         files  = [file for file in os.listdir('./') if 'ROC_DAC_module_BPix' in file]
         ffiles = [file for file in os.listdir('./') if 'ROC_DAC_module_FPix' in file]
         for f in ffiles:
-            cmd = 'cp %s %s'%(f,tmpdir)
-            os.system(cmd)
-    
+            shutil.copy(f,tmpdir)
+
     # --- change VcThr for the ROCs contained in [files]
     deltafilenew = open("%s_%d.txt"%(deltafilename,iteration),'w')
     
@@ -172,7 +200,7 @@ def ChangeVcThr(run,key,filename,iteration,excluded,deltafilename,singleStep,lar
                     filenew.write(item)
                 elif 'VcThr' in item:
                     vcthr,value = item.split()
-                    if name in excludedrocs:
+                    if (name in excludedrocs or name not in rocsInDetConfig): # exclude from the procedure rocs not in detconfis or in exlcudede.txt
                         newvalue = int(value)
                         delta = 0
                     else:
@@ -241,16 +269,17 @@ def MakeNewDacSettings():
     print 'Last dac dir : ', subdirs[-1]    
     lastsettings = subdirs[-1]
     newsettings = subdirs[-1]+1
-    cmd = 'cp -r %d %d'%(lastsettings,newsettings)
-    os.system(cmd)
- 
+    os.system('mkdir %d'%newsettings)
+    for fold in glob.glob('%d'%lastsettings+'/*dat'):
+        shutil.copy(fold,'%d/'%newsettings)
+    
     cmd = 'cd %s'%currentdir
     os.chdir('%s'%currentdir)
 
     # --- Copy .dat files in the new/ directory to the dac directory
-    cmd = 'cp new/ROC_DAC_module_*.dat %s/%d'%(dacdir,newsettings)    
-    os.system(cmd)
-        
+    for fnew in glob.glob('new/*dat'):
+        shutil.copy(fnew,'%s/%d/'%(dacdir,newsettings))
+
     # --- Make the new dac the default
     cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
     print cmd
@@ -266,7 +295,7 @@ parser.add_option("-k","--key",dest="key",type="string",help="Run key")
 parser.add_option("-i","--iteration",dest="iteration",type="int",default=-1,help="Iteration")
 parser.add_option("-o","--outputFile",dest="output",type="string",default="failed",help="Name of the output file containing the list of failing rocs. Default is failed.txt")
 parser.add_option("-d","--deltaFile",dest="delta",type="string",default="delta",help="Name of the output file containing the deltaVcThr. Default is delta.txt")
-parser.add_option("-e","--exclude",dest="exclude",type="string",default="failed_0.txt",help="List of the ROCs you want to exclude from the iterative procedure")
+parser.add_option("-e","--exclude",dest="exclude",type="string",default="",help="List of the ROCs you want to exclude from the iterative procedure")
 parser.add_option("","--singleStep",dest="singleStep",type="int",default=2,help="Step width. Default is 2")
 parser.add_option("","--largeStep",dest="largeStep",type="int",default=6,help="Large step width. Default is 6")
 parser.add_option("","--safetyMargin",dest="safetyMargin",type="int",default=6,help="Safety margin. Default is 6")
