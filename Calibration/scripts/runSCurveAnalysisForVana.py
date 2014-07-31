@@ -8,6 +8,8 @@
 
 import os
 import sys
+import glob 
+import shutil
 
 verbose = True
 pixelAnalysisExe   = './bin/linux/x86_64_slc5/PixelAnalysis.exe'
@@ -139,21 +141,23 @@ def MakeNewDacSettings():
     print 'Last dac dir : ', subdirs[-1]    
     lastsettings = subdirs[-1]
     newsettings = subdirs[-1]+1
-    cmd = 'cp -r %d %d'%(lastsettings,newsettings)
-    if (verbose):
-        print cmd
-    os.system(cmd)
+    os.system('mkdir %d'%newsettings)
+    for fold in glob.glob('%d'%lastsettings+'/*dat'):
+        shutil.copy(fold,'%d/'%newsettings)
+
+    
  
     cmd = 'cd %s'%currentdir
     if (verbose):
         print cmd
     os.chdir('%s'%currentdir)
 
-    cmd = 'cp ROC_DAC_module_*dat %s/%d'%(dacdir,newsettings)    
-    if (verbose):
-        print cmd
-    os.system(cmd)
-        
+    
+    for fnew in glob.glob('./*dat'):
+        shutil.copy(fnew,'%s/%d/'%(dacdir,newsettings))
+
+    
+   
     cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
     if (verbose):
         print cmd
